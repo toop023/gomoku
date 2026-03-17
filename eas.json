@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 5.2.0"
+  },
+  "build": {
+    "developmentClient": "simple-build",
+    "previewClient": "simple-build",
+    "productionClient": "managed"
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "service": "eas"
+      }
+    }
+  },
+  "apps": [
+    {
+      "appName": "five-cloud-gomoku",
+      "slug": "gomoku",
+      "version": "1.0.0",
+      "platforms": [
+        "android"
+      ],
+      "projectConfig": "./app.json"
+    }
+  ]
+}

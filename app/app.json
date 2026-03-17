@@ -1,0 +1,28 @@
+{
+  "name": "Five Cloud",
+  "displayName": "五子云",
+  "version": "1.0.0",
+  "description": "Solana Mobile 五子棋对战游戏",
+  "expo": {
+    "name": "Five Cloud",
+    "slug": "gomoku",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gomoku.fivecloud"
+    },
+    "android": {
+      "package": "com.gomoku.fivecloud",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": []
+  }
+}

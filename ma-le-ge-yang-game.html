@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>马了个羊 - 堆叠消除</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+body { background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); min-height: 100vh; font-family: 'Fredoka', -apple-system, sans-serif; overflow: hidden; touch-action: manipulation; position: relative; color: #fff; }
+/* 背景动画 */
+.bg-pattern { position: fixed; inset: 0; background-image: radial-gradient(circle at 20% 30%, rgba(34, 139, 34, 0.03) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(34, 139, 34, 0.03) 0%, transparent 50%); z-index: 0; animation: bgFloat 20s ease-in-out infinite; }
+@keyframes bgFloat { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.5; } }
+/* 星星背景 */
+.stars-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.star { position: absolute; background: white; border-radius: 50%; animation: twinkle 3s ease-in-out infinite; }
+#app { position: relative; z-index: 1; max-width: 600px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; }
+/* 关卡选择 */
+.level-select-screen { position: fixed; inset: 0; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%); z-index: 100; display: flex; flex-direction: column; padding: 20px; }
+.level-select-header { text-align: center; padding: 30px 0 20px; }
+.level-select-header h1 { font-size: 48px; font-weight: 700; background: linear-gradient(135deg, #ffd700, #ff6b00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 8px; filter: drop-shadow(0 4px 20px rgba(255, 215, 0, 0.4)); }
+.level-select-header p { color: rgba(255,255,255,0.6); font-size: 16px; }
+.level-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 10px 0; overflow-y: auto; flex: 1; }
+.level-btn { aspect-ratio: 1; border: none; border-radius: 16px; font-size: 24px; font-weight: 700; font-family: 'Fredoka', sans-serif; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+.level-btn::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent); opacity: 0; transition: opacity 0.3s; }
+.level-btn:hover::before { opacity: 1; }
+.level-btn.locked { background: linear-gradient(145deg, #2a2a4a, #1a1a2e); color: rgba(255,255,255,0.2); box-shadow: inset 0 4px 10px rgba(0,0,0,0.3); }
+.level-btn.unlocked { background: linear-gradient(145deg, #228b22, #32cd32); color: #ffd700; box-shadow: 0 6px 0 0 rgba(34, 139, 34, 0.3); }
+.level-btn.unlocked:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 10px 20px rgba(34, 139, 34, 0.5); }
+.level-btn.completed { background: linear-gradient(145deg, #ffd700, #ff8c00); color: #1a1a2e; box-shadow: 0 6px 0 0 rgba(255, 215, 0, 0.4); }
+.level-btn .stars { font-size: 10px; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); }
+.level-btn .lock-icon { font-size: 20px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.level-stats { display: flex; justify-content: center; gap: 30px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 16px; margin-top: 15px; }
+.stat-item { text-align: center; }
+.stat-item .value { font-size: 28px; font-weight: 700; color: #ffd700; text-shadow: 0 2px 10px rgba(255, 215, 0, 0.3); }
+.stat-item .label { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+/* 游戏界面 */
+.game-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+.menu-btn { background: rgba(255,255,255,0.1); border: none; color: white; width: 44px; height: 44px; border-radius: 12px; font-size: 20px; cursor: pointer; transition: all 0.2s; }
+.menu-btn:hover { background: rgba(255,255,255,0.2); }
+.header-info { display: flex; gap: 12px; }
+.header-stat { background: rgba(0,0,0,0.3); padding: 8px 16px; border-radius: 20px; color: white; font-size: 14px; font-weight: 600; }
+.header-stat .value { color: #ffd700; font-weight: 700; }
+/* 卡槽区域 */
+#slots-area { padding: 10px 20px; }
+#slots-container { background: linear-gradient(145deg, rgba(0,0,0,0.4), rgba(0,0,0,0.2)); backdrop-filter: blur(20px); border-radius: 20px; padding: 12px 16px; border: 2px solid rgba(255,255,255,0.1); box-shadow: inset 0 4px 20px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.2); }
+#slots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.slot { aspect-ratio: 1; background: rgba(255,255,255,0.05); border-radius: 12px; border: 2px dashed rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 26px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+.slot.filled { background: linear-gradient(145deg, #ffffff, #f8f8f8); border: 2px solid rgba(0,0,0,0.1); box-shadow: 0 4px 8px rgba(0,0,0,0.15), inset 0 2px 4px rgba(0,0,0,0.05); animation: slotAppear 0.3s ease-out; }
+@keyframes slotAppear { 0% { transform: scale(0) rotate(-180deg); opacity: 0; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+.slot.highlight { animation: slotHighlight 0.4s ease-out; }
+@keyframes slotHighlight { 0% { transform: scale(1); } 50% { transform: scale(1.2); box-shadow: 0 0 25px rgba(255, 215, 0, 0.8); } 100% { transform: scale(1); } }
+.slot::before { content: ''; position: absolute; inset: -3px; border: 2px solid rgba(255,215,0,0.3); border-radius: 10px; opacity: 0; transition: opacity 0.3s; }
+.slot.filled::before { opacity: 1; }
+/* 游戏区域 */
+#game-area { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 300px; }
+#tiles-container { position: relative; width: 100%; height: 100%; }
+/* 卡片样式 */
+.tile { width: 48px; height: 48px; position: absolute; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 26px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 8px rgba(0,0,0,0.2), 0 6px 0 0 rgba(0,0,0,0.1), inset 0 -2px 4px rgba(255,255,255,0.3), inset 0 2px 4px rgba(0,0,0,0.1); will-change: transform; }
+.tile::after { content: ''; position: absolute; inset: 3px; border-radius: 8px; background: inherit; opacity: 0.3; }
+.tile:active { transform: scale(0.92); }
+.tile.clickable { cursor: pointer; animation: tileFloat 2s ease-in-out infinite; }
+@keyframes tileFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.tile.blocked { cursor: not-allowed; filter: brightness(0.5); opacity: 0.8; }
+.tile.blocked::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient( 45deg, transparent, transparent 4px, rgba(0,0,0,0.15) 4px, rgba(0,0,0,0.15) 8px ); border-radius: 10px; }
+/* 卡片类型样式 */
+.tile[data-type="horse"] { background: linear-gradient(145deg, #8B4513, #A0522D); box-shadow: 0 4px 8px rgba(139, 69, 19, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="carrot"] { background: linear-gradient(145deg, #FF8C00, #FF6B00); box-shadow: 0 4px 8px rgba(255, 140, 0, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="hay"] { background: linear-gradient(145deg, #DAA520, #B8860B); box-shadow: 0 4px 8px rgba(218, 165, 32, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="saddle"] { background: linear-gradient(145deg, #654321, #8B4513); box-shadow: 0 4px 8px rgba(101, 67, 33, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="whip"] { background: linear-gradient(145deg, #8B0000, #A52A2A); box-shadow: 0 4px 8px rgba(139, 0, 0, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="boot"] { background: linear-gradient(145deg, #2F4F4F, #3A5F5F); box-shadow: 0 4px 8px rgba(47, 79, 79, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="race"] { background: linear-gradient(145deg, #228B22, #32CD32); box-shadow: 0 4px 8px rgba(34, 205, 50, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="trophy"] { background: linear-gradient(145deg, #FFD700, #FFA500); box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="ticket"] { background: linear-gradient(145deg, #4682B4, #5A9BD4); box-shadow: 0 4px 8px rgba(70, 154, 212, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="coin"] { background: linear-gradient(145deg, #FFD700, #FFC125); box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="fence"] { background: linear-gradient(145deg, #8B4513, #A0522D); box-shadow: 0 4px 8px rgba(139, 69, 19, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="water"] { background: linear-gradient(145deg, #1E90FF, #4169E1); box-shadow: 0 4px 8px rgba(30, 144, 241, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="rider"] { background: linear-gradient(145deg, #DC143C, #FF4500); box-shadow: 0 4px 8px rgba(220, 20, 0, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="bell"] { background: linear-gradient(145deg, #FFD700, #DAA520); box-shadow: 0 4px 8px rgba(218, 165, 32, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="number"] { background: linear-gradient(145deg, #FFFFFF, #F0F0F0); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(0,0,0,0.2); color: #1a1a2e; }
+.tile[data-type="barn"] { background: linear-gradient(145deg, #8B4513, #A0522D); box-shadow: 0 4px 8px rgba(139, 69, 19, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="grass"] { background: linear-gradient(145deg, #228B22, #2E8B57); box-shadow: 0 4px 8px rgba(34, 139, 34, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="gate"] { background: linear-gradient(145deg, #4A4A4A, #6A6A6A); box-shadow: 0 4px 8px rgba(74, 74, 74, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+.tile[data-type="stable"] { background: linear-gradient(145deg, #8B4513, #A0522D); box-shadow: 0 4px 8px rgba(139, 69, 19, 0.3), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.2); }
+/* 特殊卡片 */
+.tile.wild { background: linear-gradient(145deg, #2d3436, #636e72) !important; border: 3px solid #ffd700; animation: wildPulse 1.5s ease-in-out infinite; box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+@keyframes wildPulse { 0%, 100% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); } 50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.6); } }
+.tile.strong { position: relative; }
+.tile.strong::after { content: '🔒'; position: absolute; top: -3px; right: -3px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+.tile.strong[data-strength="2"]::after { content: '🔒🔒'; top: -2px; right: -2px; font-size: 10px; }
+/* 消除动画 */
+.tile.eliminating { animation: tileEliminate 0.5s ease-out forwards; pointer-events: none; }
+@keyframes tileEliminate { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(1.3) rotate(180deg); opacity: 0.8; } 100% { transform: scale(0) rotate(360deg); opacity: 0; } }
+/* 层级阴影效果 */
+.tile.layer-0 { z-index: 1; }
+.tile.layer-1 { z-index: 2; }
+.tile.layer-2 { z-index: 3; }
+.tile.layer-3 { z-index: 4; }
+.tile.layer-4 { z-index: 5; }
+.tile.layer-5 { z-index: 6; }
+.tile.layer-6 { z-index: 7; }
+/* 道具区域 */
+#tools-area { padding: 15px 20px 20px; display: flex; justify-content: center; gap: 12px; }
+.tool-btn { width: 58px; height: 58px; border: none; border-radius: 14px; font-size: 24px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; font-family: 'Fredoka', sans-serif; }
+.tool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.tool-btn:not(:disabled):hover { transform: translateY(-4px); }
+.tool-btn:not(:disabled):active { transform: translateY(0); }
+.tool-btn .count { position: absolute; top: -4px; right: -4px; background: #ff6b6b; color: white; font-size: 11px; font-weight: 700; padding: 3px 6px; border-radius: 8px; min-width: 20px; text-align: center; font-family: 'Fredoka', sans-serif; }
+.tool-btn.primary { background: linear-gradient(145deg, #228B22, #32CD32); box-shadow: 0 4px 0 0 rgba(34, 205, 50, 0.3); }
+.tool-btn.warning { background: linear-gradient(145deg, #DAA520, #FFC125); box-shadow: 0 4px 0 0 rgba(218, 165, 32, 0.3); }
+.tool-btn.success { background: linear-gradient(145deg, #4682B4, #5A9BD4); box-shadow: 0 4px 0 0 rgba(70, 154, 212, 0.3); }
+/* 弹窗 */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(15px); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.active { display: flex; animation: modalFadeIn 0.3s ease-out; }
+@keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-content { background: linear-gradient(145deg, #2a2a4a, #1a1a2e); border-radius: 24px; padding: 30px; text-align: center; max-width: 340px; width: 100%; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: modalPop 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes modalPop { 0% { transform: scale(0.7) translateY(20px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+.modal-content h2 { font-size: 36px; margin-bottom: 10px; font-family: 'Fredoka', sans-serif; }
+.modal-content h2.win { color: #ffd700; text-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+.modal-content h2.lose { color: #ff6b6b; text-shadow: 0 0 20px rgba(255, 107, 107, 0.4); }
+.modal-content p { color: rgba(255,255,255,0.7); font-size: 16px; margin-bottom: 20px; }
+.modal-stats { background: rgba(0,0,0,0.2); border-radius: 16px; padding: 15px; margin-bottom: 20px; }
+.modal-stat-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 15px; }
+.modal-stat-row:last-child { border-bottom: none; }
+.modal-buttons { display: flex; gap: 12px; }
+.modal-btn { flex: 1; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; font-family: 'Fredoka', sans-serif; cursor: pointer; transition: all 0.3s; }
+.modal-btn.primary { background: linear-gradient(145deg, #ffd700, #ff8c00); color: #1a1a2e; }
+.modal-btn.secondary { background: rgba(255,255,255,0.1); color: white; }
+.modal-btn:hover { transform: translateY(-2px); }
+/* 提示 */
+#toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: rgba(0,0,0,0.9); color: white; padding: 12px 24px; border-radius: 12px; font-size: 15px; font-family: 'Fredoka', sans-serif; z-index: 2000; opacity: 0; transition: all 0.3s ease; pointer-events: none; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* 连击显示 */
+#combo-display { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 52px; font-weight: 700; font-family: 'Fredoka', sans-serif; color: #ffd700; text-shadow: 0 0 30px rgba(255, 215, 0, 0.8); pointer-events: none; z-index: 500; animation: comboFade 0.8s ease-out forwards; }
+@keyframes comboFade { 0% { transform: translate(-50%, -50%) scale(0) rotate(-10deg); opacity: 1; } 30% { transform: translate(-50%, -50%) scale(1.2) rotate(5deg); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0; } }
+/* 粒子效果 */
+.particle { position: fixed; pointer-events: none; z-index: 999; animation: particleFall 1s ease-out forwards; }
+@keyframes particleFall { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100px) rotate(360deg); opacity: 0; } }
+/* 移动端适配 */
+@media (max-width: 400px) {
+.tile { width: 42px; height: 42px; font-size: 22px; }
+.slot { font-size: 20px; }
+.level-select-header h1 { font-size: 40px; }
+.tool-btn { width: 52px; height: 52px; font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<div class="stars-bg" id="stars-bg"></div>
+<div class="bg-pattern"></div>
+<!-- 关卡选择界面 -->
+<div id="level-select" class="level-select-screen">
+<div class="level-select-header">
+<h1>🐴 马了个羊</h1>
+<p>点击卡片自动进入卡槽，三连消除</p>
+</div>
+<div class="level-grid" id="level-grid"></div>
+<div class="level-stats">
+<div class="stat-item">
+<div class="value" id="total-stars">0</div>
+<div class="label">总星数</div>
+</div>
+<div class="stat-item">
+<div class="value" id="completed-levels">0</div>
+<div class="label">通关</div>
+</div>
+</div>
+</div>
+<!-- 游戏界面 -->
+<div id="app" style="display: none;">
+<div class="game-header">
+<button class="menu-btn" onclick="showLevelSelect()">☰</button>
+<div class="header-info">
+<div class="header-stat">
+ 关卡 <span class="value" id="current-level">1</span>
+</div>
+<div class="header-stat">
+ 步数 <span class="value" id="moves-count">0</span>
+</div>
+</div>
+</div>
+<div id="slots-area">
+<div id="slots-container">
+<div id="slots"></div>
+</div>
+</div>
+<div id="game-area">
+<div id="tiles-container"></div>
+</div>
+<div id="tools-area">
+<button class="tool-btn primary" id="tool-undo" onclick="useTool('undo')" disabled> ↩️ <span class="count" id="undo-count">3</span>
+</button>
+<button class="tool-btn warning" id="tool-shuffle" onclick="useTool('shuffle')" disabled> 🔀 <span class="count" id="shuffle-count">2</span>
+</button>
+<button class="tool-btn success" id="tool-remove" onclick="useTool('remove')" disabled> 📤 <span class="count" id="remove-count">1</span>
+</button>
+</div>
+</div>
+<!-- 提示 -->
+<div id="toast"></div>
+<!-- 连击显示 -->
+<div id="combo-container"></div>
+<!-- 游戏结束弹窗 -->
+<div id="modal" class="modal-overlay">
+<div class="modal-content">
+<h2 id="modal-title">游戏结束</h2>
+<p id="modal-message"></p>
+<div class="modal-stats" id="modal-stats"></div>
+<div class="modal-buttons">
+<button class="modal-btn primary" onclick="nextLevel()">下一关</button>
+<button class="modal-btn secondary" onclick="showLevelSelect()">返回</button>
+</div>
+</div>
+</div>
+<script>
+// ==================== 配置 ====================
+const CONFIG = {
+SLOT_COUNT: 7,
+TILE_SIZE: 48,
+GRID_SIZE: 40,
+LEVELS_COUNT: 30,
+STORAGE_PREFIX: 'horseRacing_'
+};
+// ==================== 马场主题卡片 ====================
+const TILE_TYPES = [
+{ id: 'horse', emoji: '🐴', name: '赛马' },
+{ id: 'carrot', emoji: '🥕', name: '胡萝卜' },
+{ id: 'hay', emoji: '🌾', name: '干草' },
+{ id: 'saddle', emoji: '🩺', name: '马鞍' },
+{ id: 'whip', emoji: '🎗️', name: '马鞭' },
+{ id: 'boot', emoji: '🧲', name: '马靴' },
+{ id: 'race', emoji: '🏇', name: '比赛' },
+{ id: 'trophy', emoji: '🏆', name: '奖杯' },
+{ id: 'ticket', emoji: '🎫', name: '门票' },
+{ id: 'coin', emoji: '💰', name: '金币' },
+{ id: 'fence', emoji: '🚧', name: '栅栏' },
+{ id: 'water', emoji: '💧', name: '水槽' },
+{ id: 'rider', emoji: '👨‍🌾', name: '骑师' },
+{ id: 'bell', emoji: '🔔', name: '铃铛' },
+{ id: 'number', emoji: '🔢', name: '号码布' },
+{ id: 'barn', emoji: '🏟️', name: '马厩' },
+{ id: 'grass', emoji: '🌿', name: '牧场' },
+{ id: 'gate', emoji: '🚪', name: '马门' },
+{ id: 'stable', emoji: '🏠️', name: '马房' }
+];
+// ==================== 关卡配置 ====================
+const LEVELS = [
+// 第1-5关：教学关
+{ level: 1, tiles: 21, types: 4, layers: 2, strong: 0, wild: 0 },
+{ level: 2, tiles: 24, types: 4, layers: 2, strong: 0, wild: 1 },
+{ level: 3, tiles: 27, types: 5, layers: 2, strong: 1, wild: 0 },
+{ level: 4, tiles: 30, types: 5, layers: 3, strong: 1, wild: 1 },
+{ level: 5, tiles: 33, types: 5, layers: 3, strong: 1, wild: 1 },
+// 第6-15关：进阶关
+{ level: 6, tiles: 36, types: 6, layers: 3, strong: 2, wild: 1 },
+{ level: 7, tiles: 39, types: 6, layers: 3, strong: 2, wild: 1 },
+{ level: 8, tiles: 42, types: 6, layers: 4, strong: 2, wild: 2 },
+{ level: 9, tiles: 45, types: 6, layers: 4, strong: 3, wild: 2 },
+{ level: 10, tiles: 48, types: 7, layers: 4, strong: 3, wild: 2 },
+{ level: 11, tiles: 51, types: 7, layers: 4, strong: 3, wild: 2 },
+{ level: 12, tiles: 54, types: 7, layers: 4, strong: 4, wild: 2 },
+{ level: 13, tiles: 57, types: 7, layers: 4, strong: 4, wild: 2 },
+{ level: 14, tiles: 60, types: 8, layers: 5, strong: 4, wild: 2 },
+{ level: 15, tiles: 63, types: 8, layers: 5, strong: 4, wild: 3 },
+// 第16-25关：困难关
+{ level: 16, tiles: 66, types: 9, layers: 5, strong: 5, wild: 3 },
+{ level: 17, tiles: 69, types: 9, layers: 5, strong: 5, wild: 3 },
+{ level: 18, tiles: 72, types: 9, layers: 5, strong: 5, wild: 3 },
+{ level: 19, tiles: 75, types: 9, layers: 5, strong: 6, wild: 3 },
+{ level: 20, tiles: 78, types: 9, layers: 5, strong: 6, wild: 3 },
+{ level: 21, tiles: 81, types: 10, layers: 5, strong: 6, wild: 3 },
+{ level: 22, tiles: 84, types: 10, layers: 5, strong: 6, wild: 4 },
+{ level: 23, tiles: 87, types: 10, layers: 5, strong: 7, wild: 4 },
+{ level: 24, tiles: 90, types: 10, layers: 6, strong: 7, wild: 4 },
+{ level: 25, tiles: 93, types: 10, layers: 6, strong: 7, wild: 4 },
+// 第26-30关：地狱关
+{ level: 26, tiles: 96, types: 11, layers: 6, strong: 8, wild: 4 },
+{ level: 27, tiles: 99, types: 11, layers: 6, strong: 8, wild: 4 },
+{ level: 28, tiles: 102, types: 11, layers: 6, strong: 9, wild: 4 },
+{ level: 29, tiles: 105, types: 11, layers: 6, strong: 9, wild: 4 },
+{ level: 30, tiles: 108, types: 11, layers: 6, strong: 9, wild: 5 }
+];
+// ==================== 游戏状态 ====================
+let gameState = {
+tiles: [],
+slots: [],
+currentLevel: 1,
+moves: 0,
+combo: 0,
+maxCombo: 0,
+totalMatches: 0,
+isGameOver: false,
+tools: { undo: 3, shuffle: 2, remove: 1 },
+history: []
+};
+let playerProgress = {
+completedLevels: {},
+totalStars: 0
+};
+const elements = {
+levelSelect: null,
+levelGrid: null,
+app: null,
+slotsContainer: null,
+tilesContainer: null,
+modal: null,
+starsBg: null
+};
+// ==================== 初始化 ====================
+function init() {
+elements.levelSelect = document.getElementById('level-select');
+elements.levelGrid = document.getElementById('level-grid');
+elements.app = document.getElementById('app');
+elements.slotsContainer = document.getElementById('slots');
+elements.tilesContainer = document.getElementById('tiles-container');
+elements.modal = document.getElementById('modal');
+elements.starsBg = document.getElementById('stars-bg');
+loadProgress();
+createStars();
+showLevelSelect();
+}
+function createStars() {
+for (let i = 0; i < 50; i++) {
+const star = document.createElement('div');
+star.className = 'star';
+star.style.left = Math.random() * 100 + '%';
+star.style.top = Math.random() * 100 + '%';
+star.style.width = (Math.random() * 2 + 1) + 'px';
+star.style.height = star.style.width;
+star.style.animationDelay = Math.random() * 3 + 's';
+elements.starsBg.appendChild(star);
+}
+}
+function loadProgress() {
+const saved = localStorage.getItem(CONFIG.STORAGE_PREFIX + 'progress');
+if (saved) {
+playerProgress = JSON.parse(saved);
+}
+}
+function saveProgress() {
+localStorage.setItem(CONFIG.STORAGE_PREFIX + 'progress', JSON.stringify(playerProgress));
+}
+// ==================== 关卡选择 ====================
+function showLevelSelect() {
+elements.modal.classList.remove('active');
+elements.app.style.display = 'none';
+elements.levelSelect.style.display = 'flex';
+renderLevelGrid();
+updateLevelStats();
+}
+function renderLevelGrid() {
+elements.levelGrid.innerHTML = '';
+for (let i = 1; i <= CONFIG.LEVELS_COUNT; i++) {
+const btn = document.createElement('button');
+btn.className = 'level-btn';
+const levelData = LEVELS[i - 1];
+const isUnlocked = i === 1 || playerProgress.completedLevels[i - 1];
+const isCompleted = playerProgress.completedLevels[i];
+if (!isUnlocked) {
+btn.classList.add('locked');
+btn.innerHTML = '<span class="lock-icon">🔒</span>';
+} else if (isCompleted) {
+btn.classList.add('completed');
+btn.textContent = i;
+const stars = isCompleted.stars || 1;
+btn.innerHTML = `${i}<div class="stars">${'⭐'.repeat(stars)}</div>`;
+} else {
+btn.classList.add('unlocked');
+btn.textContent = i;
+}
+btn.onclick = () => {
+if (isUnlocked) {
+startLevel(i);
+} else {
+showToast('先完成前面的关卡！');
+}
+};
+elements.levelGrid.appendChild(btn);
+}
+}
+function updateLevelStats() {
+const completedCount = Object.keys(playerProgress.completedLevels).length;
+let totalStars = 0;
+Object.values(playerProgress.completedLevels).forEach(data => {
+totalStars += data.stars || 1;
+});
+document.getElementById('total-stars').textContent = totalStars;
+document.getElementById('completed-levels').textContent = completedCount;
+}
+// ==================== 开始关卡 ====================
+function startLevel(levelNum) {
+gameState.currentLevel = levelNum;
+const levelData = LEVELS[levelNum - 1];
+gameState.moves = 0;
+gameState.combo = 0;
+gameState.maxCombo = 0;
+gameState.totalMatches = 0;
+gameState.isGameOver = false;
+gameState.history = [];
+gameState.tools = { undo: 3, shuffle: 2, remove: 1 };
+gameState.slots = new Array(CONFIG.SLOT_COUNT).fill(null);
+generateLevelTiles(levelData);
+elements.levelSelect.style.display = 'none';
+elements.app.style.display = 'flex';
+document.getElementById('current-level').textContent = levelNum;
+document.getElementById('moves-count').textContent = '0';
+renderSlots();
+renderTiles();
+updateTools();
+}
+function generateLevelTiles(levelData) {
+const tiles = [];
+const availableTypes = TILE_TYPES.slice(0, levelData.types);
+const tilesPerType = Math.floor(levelData.tiles / availableTypes.length / 3) * 3;
+for (const type of availableTypes) {
+for (let i = 0; i < tilesPerType; i++) {
+tiles.push({ id: `tile_${Date.now()}_${Math.random()}`, type: type.id, emoji: type.emoji, layer: 0, x: 0, y: 0, blocked: false, special: null });
+}
+}
+while (tiles.length < levelData.tiles) {
+const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+tiles.push({ id: `tile_${Date.now()}_${Math.random()}`, type: type.id, emoji: type.emoji, layer: 0, x: 0, y: 0, blocked: false, special: null });
+}
+for (let i = 0; i < levelData.strong; i++) {
+const randomIdx = Math.floor(Math.random() * tiles.length);
+tiles[randomIdx].special = 'strong';
+tiles[randomIdx].strength = Math.random() > 0.5 ? 2 : 1;
+}
+for (let i = 0; i < levelData.wild; i++) {
+const randomIdx = Math.floor(Math.random() * tiles.length);
+tiles[randomIdx].special = 'wild';
+tiles[randomIdx].emoji = '🃏';
+}
+layoutTiles(tiles, levelData.layers);
+gameState.tiles = tiles;
+}
+function layoutTiles(tiles, maxLayers) {
+const container = elements.tilesContainer;
+const rect = container.getBoundingClientRect();
+const centerX = (rect.width || 340) / 2 - CONFIG.TILE_SIZE / 2;
+const centerY = (rect.height || 380) / 2 - CONFIG.TILE_SIZE / 2;
+const tilesPerLayer = Math.floor(tiles.length / maxLayers);
+tiles.forEach((tile, index) => {
+const layer = Math.floor(index / tilesPerLayer);
+const layerProgress = (index % tilesPerLayer) / Math.ceil(tiles.length / maxLayers);
+const angle = layerProgress * Math.PI * 2 * (2 + layer * 0.5);
+const radius = 25 + layer * 20 + layerProgress * Math.min(centerX, centerY) * 0.6;
+tile.x = centerX + Math.cos(angle) * radius;
+tile.y = centerY + Math.sin(angle) * radius * 0.65;
+tile.layer = Math.min(layer, maxLayers - 1);
+});
+updateBlockedStates();
+}
+function updateBlockedStates() {
+gameState.tiles.forEach(tile => {
+tile.blocked = false;
+for (const other of gameState.tiles) {
+if (other.id === tile.id) continue;
+if (other.layer <= tile.layer) continue;
+const dx = Math.abs(other.x - tile.x);
+const dy = Math.abs(other.y - tile.y);
+if (dx < CONFIG.GRID_SIZE && dy < CONFIG.GRID_SIZE) {
+tile.blocked = true;
+break;
+}
+}
+});
+}
+// ==================== 渲染 ====================
+function renderTiles() {
+elements.tilesContainer.innerHTML = '';
+const sortedTiles = [...gameState.tiles].sort((a, b) => a.layer - b.layer);
+sortedTiles.forEach(tile => {
+const el = document.createElement('div');
+el.className = `tile layer-${tile.layer}`;
+el.style.left = tile.x + 'px';
+el.style.top = tile.y + 'px';
+el.dataset.type = tile.type;
+el.dataset.id = tile.id;
+el.textContent = tile.emoji;
+if (tile.special === 'wild') {
+el.classList.add('wild');
+}
+if (tile.special === 'strong') {
+el.classList.add('strong');
+el.dataset.strength = tile.strength;
+}
+if (tile.blocked) {
+el.classList.add('blocked');
+} else {
+el.classList.add('clickable');
+}
+el.onclick = () => handleTileClick(tile);
+elements.tilesContainer.appendChild(el);
+});
+}
+function renderSlots() {
+elements.slotsContainer.innerHTML = '';
+for (let i = 0; i < CONFIG.SLOT_COUNT; i++) {
+const slot = document.createElement('div');
+slot.className = 'slot';
+if (gameState.slots[i]) {
+slot.classList.add('filled');
+slot.textContent = gameState.slots[i].emoji;
+if (gameState.slots[i].special === 'wild') {
+slot.classList.add('wild');
+}
+}
+elements.slotsContainer.appendChild(slot);
+}
+}
+function updateTools() {
+document.getElementById('undo-count').textContent = gameState.tools.undo;
+document.getElementById('shuffle-count').textContent = gameState.tools.shuffle;
+document.getElementById('remove-count').textContent = gameState.tools.remove;
+document.getElementById('tool-undo').disabled = gameState.tools.undo <= 0 || gameState.history.length === 0;
+document.getElementById('tool-shuffle').disabled = gameState.tools.shuffle <= 0;
+document.getElementById('tool-remove').disabled = gameState.tools.remove <= 0;
+}
+// ==================== 交互 ====================
+function handleTileClick(tile) {
+if (gameState.isGameOver || tile.blocked) return;
+if (tile.special === 'strong') {
+tile.strength--;
+if (tile.strength > 0) {
+if (navigator.vibrate) navigator.vibrate(30);
+showToast('还需点击 ' + tile.strength + ' 次');
+renderTiles();
+return;
+}
+}
+saveHistory();
+const emptySlotIndex = gameState.slots.findIndex(s => s === null);
+if (emptySlotIndex === -1) {
+showToast('卡槽已满！');
+return;
+}
+gameState.tiles = gameState.tiles.filter(t => t.id !== tile.id);
+gameState.slots[emptySlotIndex] = tile;
+gameState.moves++;
+document.getElementById('moves-count').textContent = gameState.moves;
+updateBlockedStates();
+renderTiles();
+renderSlots();
+setTimeout(() => checkMatches(), 80);
+}
+function saveHistory() {
+gameState.history.push({ tiles: JSON.parse(JSON.stringify(gameState.tiles)), slots: [...gameState.slots], moves: gameState.moves });
+if (gameState.history.length > 10) {
+gameState.history.shift();
+}
+}
+function checkMatches() {
+let foundMatch = false;
+gameState.combo = 0;
+for (let i = 0; i < gameState.slots.length - 2; i++) {
+if (!gameState.slots[i] || !gameState.slots[i + 1] || !gameState.slots[i + 2]) continue;
+const s1 = gameState.slots[i];
+const s2 = gameState.slots[i + 1];
+const s3 = gameState.slots[i + 2];
+const normalIds = [s1, s2, s3]
+.filter(s => s.special !== 'wild')
+.map(s => s.type);
+let isMatch = false;
+if (normalIds.length === 0) {
+isMatch = true;
+} else {
+isMatch = normalIds.every(id => id === normalIds[0]);
+}
+if (isMatch) {
+gameState.combo++;
+if (gameState.combo > gameState.maxCombo) {
+gameState.maxCombo = gameState.combo;
+}
+gameState.totalMatches++;
+if (navigator.vibrate) navigator.vibrate([25, 40, 25]);
+if (gameState.combo >= 2) {
+showCombo(gameState.combo);
+}
+// 消除动画
+for (let j = 0; j < 3; j++) {
+const slotEl = elements.slotsContainer.children[i + j];
+if (slotEl) {
+slotEl.style.animation = 'none';
+slotEl.offsetHeight;
+slotEl.style.animation = 'tileEliminate 0.5s ease-out forwards';
+}
+}
+gameState.slots[i] = null;
+gameState.slots[i + 1] = null;
+gameState.slots[i + 2] = null;
+renderSlots();
+foundMatch = true;
+createParticles();
+break;
+}
+}
+checkGameOver();
+if (foundMatch && !gameState.isGameOver) {
+setTimeout(() => checkMatches(), 150);
+}
+}
+function showCombo(count) {
+const comboEl = document.createElement('div');
+comboEl.id = 'combo-display';
+comboEl.textContent = count + '连击! 🏇';
+document.body.appendChild(comboEl);
+setTimeout(() => comboEl.remove(), 800);
+}
+function createParticles() {
+for (let i = 0; i < 12; i++) {
+const particle = document.createElement('div');
+particle.className = 'particle';
+particle.textContent = ['✨', '⭐', '🏇', '💫'][Math.floor(Math.random() * 4)];
+particle.style.left = (50 + (Math.random() - 0.5) * 40) + '%';
+particle.style.top = (50 + (Math.random() - 0.5) * 40) + '%';
+particle.style.fontSize = (12 + Math.random() * 16) + 'px';
+document.body.appendChild(particle);
+setTimeout(() => particle.remove(), 1000);
+}
+}
+function checkGameOver() {
+if (gameState.tiles.length === 0 && gameState.slots.every(s => s === null)) {
+gameState.isGameOver = true;
+showModal(true);
+return;
+}
+if (gameState.slots.every(s => s !== null)) {
+gameState.isGameOver = true;
+showModal(false);
+return;
+}
+}
+function showModal(isWin) {
+const title = document.getElementById('modal-title');
+const message = document.getElementById('modal-message');
+const stats = document.getElementById('modal-stats');
+if (isWin) {
+title.textContent = '🏆 恭喜通关！';
+title.className = 'win';
+message.textContent = '成功消除所有卡片！';
+let stars = 1;
+const levelData = LEVELS[gameState.currentLevel - 1];
+if (gameState.moves <= levelData.tiles * 0.8) stars = 3;
+else if (gameState.moves <= levelData.tiles * 0.9) stars = 2;
+playerProgress.completedLevels[gameState.currentLevel] = { stars: Math.max(stars, playerProgress.completedLevels[gameState.currentLevel]?.stars || 0) };
+saveProgress();
+stats.innerHTML = `
+<div class="modal-stat-row"><span>⭐ 星级评价</span><span>${'⭐'.repeat(stars)}</span></div>
+<div class="modal-stat-row"><span>👆 使用步数</span><span>${gameState.moves}</span></div>
+<div class="modal-stat-row"><span>🏇 最高连击</span><span>${gameState.maxCombo}x</span></div>
+<div class="modal-stat-row"><span>✨ 消除次数</span><span>${gameState.totalMatches}</span></div>
+`;
+if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+} else {
+title.textContent = '😢 再接再厉';
+title.className = 'lose';
+message.textContent = '卡槽已满，试试使用道具！';
+stats.innerHTML = `
+<div class="modal-stat-row"><span>👆 使用步数</span><span>${gameState.moves}</span></div>
+<div class="modal-stat-row"><span>🏇 最高连击</span><span>${gameState.maxCombo}x</span></div>
+<div class="modal-stat-row"><span>📊 剩余卡片</span><span>${gameState.tiles.length}</span></div>
+`;
+}
+elements.modal.classList.add('active');
+}
+function nextLevel() {
+if (gameState.currentLevel < CONFIG.LEVELS_COUNT) {
+startLevel(gameState.currentLevel + 1);
+} else {
+showLevelSelect();
+}
+}
+// ==================== 道具 ====================
+function useTool(toolType) {
+if (gameState.isGameOver) return;
+switch (toolType) {
+case 'undo':
+if (gameState.history.length > 0 && gameState.tools.undo > 0) {
+const lastState = gameState.history.pop();
+gameState.tiles = lastState.tiles;
+gameState.slots = lastState.slots;
+gameState.moves = lastState.moves;
+gameState.tools.undo--;
+updateBlockedStates();
+renderTiles();
+renderSlots();
+updateTools();
+document.getElementById('moves-count').textContent = gameState.moves;
+showToast('已撤销');
+}
+break;
+case 'shuffle':
+if (gameState.tools.shuffle > 0) {
+const clickableTiles = gameState.tiles.filter(t => !t.blocked);
+const positions = clickableTiles.map(t => ({ x: t.x, y: t.y, layer: t.layer }));
+for (let i = positions.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[positions[i], positions[j]] = [positions[j], positions[i]];
+}
+clickableTiles.forEach((tile, i) => {
+tile.x = positions[i].x;
+tile.y = positions[i].y;
+tile.layer = positions[i].layer;
+});
+gameState.tools.shuffle--;
+updateBlockedStates();
+renderTiles();
+updateTools();
+showToast('已重新洗牌');
+}
+break;
+case 'remove':
+if (gameState.tools.remove > 0) {
+const clickableTiles = gameState.tiles.filter(t => !t.blocked).slice(0, 3);
+const emptySlots = [];
+for (let i = 0; i < CONFIG.SLOT_COUNT; i++) {
+if (!gameState.slots[i]) emptySlots.push(i);
+}
+const toRemove = Math.min(clickableTiles.length, emptySlots.length);
+for (let i = 0; i < toRemove; i++) {
+const tile = clickableTiles[i];
+gameState.slots[emptySlots[i]] = tile;
+gameState.tiles = gameState.tiles.filter(t => t.id !== tile.id);
+}
+gameState.tools.remove--;
+updateBlockedStates();
+renderTiles();
+renderSlots();
+updateTools();
+showToast('已移出 ' + toRemove + ' 个卡片');
+setTimeout(() => checkMatches(), 80);
+}
+break;
+}
+if (navigator.vibrate) navigator.vibrate(30);
+}
+function showToast(message) {
+const toast = document.getElementById('toast');
+toast.textContent = message;
+toast.classList.add('show');
+setTimeout(() => toast.classList.remove('show'), 1800);
+}
+// ==================== 启动 ====================
+init();
+</script>
+</body>
+</html>
