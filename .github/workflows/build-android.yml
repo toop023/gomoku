@@ -16,9 +16,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        sparse-checkout: false
-        sparse-checkout-cone-mode: none
       
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -28,7 +25,7 @@ jobs:
         
     - name: Install dependencies
       run: |
-        cd gomoku
+        cd app
         npm install --legacy-peer-deps
         
     - name: Install Java JDK
@@ -42,16 +39,16 @@ jobs:
       
     - name: Grant execute permission for gradlew
       run: |
-        chmod +x gomoku/android/gradlew
+        chmod +x app/android/gradlew
         
     - name: Build Debug APK
       run: |
-        cd gomoku/android
-        ./gradlew assembleDebug --stacktrace
+        cd app
+        ./android/gradlew assembleDebug --stacktrace
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: gomoku/android/app/build/outputs/apk/debug/*.apk
+        path: app/android/app/build/outputs/apk/debug/*.apk
         retention-days: 30
